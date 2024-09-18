@@ -1,0 +1,21 @@
+.background{
+  background-image: url("background.jpg");
+  object-fit: fill;
+  object-position: center;
+}
+span{
+  color:gold;
+  
+}
+.box{
+  backdrop-filter: blur(2px);
+  transition: 300ms;
+
+}
+h1{
+  font-weight: 900;
+}
+/* .box:hover{
+  border: 2px solid yellow;
+  scale: 1.2;
+} */
