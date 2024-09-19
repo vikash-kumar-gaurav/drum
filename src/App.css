@@ -1,5 +1,5 @@
 .background{
-  background-image: url("background.jpg");
+
   object-fit: fill;
   object-position: center;
 }
@@ -15,7 +15,3 @@ span{
 h1{
   font-weight: 900;
 }
-/* .box:hover{
-  border: 2px solid yellow;
-  scale: 1.2;
-} */
