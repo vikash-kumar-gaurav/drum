@@ -1,57 +1,194 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 import './App.css'
 
+const KEYS = {
+  A: { sound: 'boom', file: 'boom.wav', family: 'kick' },
+  B: { sound: 'cabasa', file: 'cabasa.wav', family: 'perc' },
+  C: { sound: 'clap', file: 'clap.wav', family: 'snare' },
+  D: { sound: 'cowb', file: 'cowb.wav', family: 'perc' },
+  E: { sound: 'crash', file: 'crash.wav', family: 'cymbal' },
+  F: { sound: 'kick', file: 'kick.wav', family: 'kick' },
+  G: { sound: 'openhat', file: 'openhat.wav', family: 'hat' },
+  H: { sound: 'hihat', file: 'hihat.wav', family: 'hat' },
+  I: { sound: 'hihat-closed', file: 'hihat-closed.wav', family: 'hat' },
+  J: { sound: 'tink', file: 'tink.wav', family: 'perc' },
+  K: { sound: 'snare', file: 'snare.wav', family: 'snare' },
+  L: { sound: 'tom', file: 'tom.wav', family: 'tom' },
+  M: { sound: 'ride', file: 'ride.wav', family: 'cymbal' },
+  N: { sound: 'conga-h', file: 'conga-h.wav', family: 'tom' },
+  O: { sound: 'conga-l', file: 'conga-l.wav', family: 'tom' },
+  P: { sound: 'conga-m', file: 'conga-m.wav', family: 'tom' },
+  Q: { sound: 'kick-alt', file: 'kick-alt.wav', family: 'kick' },
+  R: { sound: 'snare-h', file: 'snare-h.wav', family: 'snare' },
+  S: { sound: 'snare-l', file: 'snare-l.wav', family: 'snare' },
+  T: { sound: 'stick-h', file: 'stick-h.wav', family: 'perc' },
+  U: { sound: 'stick-l', file: 'stick-l.wav', family: 'perc' },
+  V: { sound: 'tamb', file: 'tamb.wav', family: 'perc' },
+  W: { sound: 'tom-h', file: 'tom-h.wav', family: 'tom' },
+  X: { sound: 'tom-l', file: 'tom-l.wav', family: 'tom' },
+  Y: { sound: 'tom-m', file: 'tom-m.wav', family: 'tom' },
+  Z: { sound: 'stick-m', file: 'stick-m.wav', family: 'perc' },
+}
+
+const ROWS = [
+  ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
+  ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
+  ['Z', 'X', 'C', 'V', 'B', 'N', 'M'],
+]
+
+const ROW_OFFSETS = ['offset-0', 'offset-1', 'offset-2']
+
 function App() {
-  const[activeKey, setactiveKey] = useState(null)
-  useEffect(()=>{
-    const handlepress = (event)=>{
-      const key = event.key.toUpperCase();
-      playSound(key);
-      setactiveKey(key);
-      setTimeout(() => {
-        setactiveKey(null)
-      }, 300);
-    };
+  const [activeKeys, setActiveKeys] = useState(() => new Set())
+  const [lastHit, setLastHit] = useState(null)
+  const [ready, setReady] = useState(false)
+  const audioMap = useRef(new Map())
+  const clearTimers = useRef(new Map())
 
-    window.addEventListener('keydown',handlepress);
-    
+  useEffect(() => {
+    Object.entries(KEYS).forEach(([letter, { file }]) => {
+      const audio = new Audio(file)
+      audio.preload = 'auto'
+      audioMap.current.set(letter, audio)
+    })
+    setReady(true)
 
-    return()=>{
-      window.removeEventListener("keydown",handlepress)
-    };
-  },[] );
-
-  const playSound =(letter)=>{
-    const audioElement = document.getElementById(letter);
-    if(audioElement){
-      audioElement.currentTime = 0;
-      audioElement.play();
+    return () => {
+      audioMap.current.forEach((audio) => {
+        audio.pause()
+        audio.src = ''
+      })
+      audioMap.current.clear()
+      clearTimers.current.forEach((id) => clearTimeout(id))
+      clearTimers.current.clear()
     }
+  }, [])
+
+  const triggerKey = (letter) => {
+    if (!KEYS[letter]) return
+
+    const audio = audioMap.current.get(letter)
+    if (audio) {
+      audio.currentTime = 0
+      const playPromise = audio.play()
+      if (playPromise?.catch) playPromise.catch(() => {})
+    }
+
+    setActiveKeys((prev) => {
+      const next = new Set(prev)
+      next.add(letter)
+      return next
+    })
+    setLastHit({ letter, sound: KEYS[letter].sound, family: KEYS[letter].family })
+
+    const existing = clearTimers.current.get(letter)
+    if (existing) clearTimeout(existing)
+
+    clearTimers.current.set(
+      letter,
+      setTimeout(() => {
+        setActiveKeys((prev) => {
+          const next = new Set(prev)
+          next.delete(letter)
+          return next
+        })
+        clearTimers.current.delete(letter)
+      }, 140)
+    )
   }
+
+  useEffect(() => {
+    const handlePress = (event) => {
+      if (event.repeat) return
+      const key = event.key.toUpperCase()
+      if (key.length !== 1 || key < 'A' || key > 'Z') return
+      event.preventDefault()
+      triggerKey(key)
+    }
+
+    window.addEventListener('keydown', handlePress)
+    return () => window.removeEventListener('keydown', handlePress)
+  }, [])
+
   return (
-    <>
-      <div className='background w-full h-screen flex items-center justify-center md:gap-5 gap-9'>
-        <div className={`text-white   sm:h-[60px] sm:w-[55px] md:h-[75px] md:w-[75px] w-[90px] h-[90px] box flex flex-col items-center pt-3 border-2 border-white ${activeKey === "A" ?'scale-125 duration-300 border-yellow-600 shadow-xl shadow-cyan-600':''}`}><h1 className='font-extrabold '>A</h1><span className=''>boom</span></div>
-        <div className={`text-white   sm:h-[60px] sm:w-[55px] md:h-[75px] md:w-[75px] w-[90px] h-[90px] box flex flex-col items-center pt-3 border-2 border-white ${activeKey === "S" ?'scale-125 duration-300 border-yellow-600 shadow-xl shadow-blue-600':''}`}><h1 className='font-extrabold '>S</h1><span className=''>clap</span></div>
-        <div className={`text-white   sm:h-[60px] sm:w-[55px] md:h-[75px] md:w-[75px] w-[90px] h-[90px] box flex flex-col items-center pt-3 border-2 border-white ${activeKey === "D" ?'scale-125 duration-300 border-yellow-600 shadow-xl shadow-fuchsia-600':''}`}><h1 className='font-extrabold '>D</h1><span className=''>hihat</span></div>
-        <div className={`text-white   sm:h-[60px] sm:w-[55px] md:h-[75px] md:w-[75px] w-[90px] h-[90px] box flex flex-col items-center pt-3 border-2 border-white ${activeKey === "F" ?'scale-125 duration-300 border-yellow-600 shadow-xl shadow-orange-600':''}`}><h1 className='font-extrabold '>F</h1><span className=''>kick</span></div>
-        <div className={`text-white   sm:h-[60px] sm:w-[55px] md:h-[75px] md:w-[75px] w-[90px] h-[90px] box flex flex-col items-center pt-3 border-2 border-white ${activeKey === "G" ?'scale-125 duration-300 border-yellow-600 shadow-xl shadow-lime-600':''}`}><h1 className='font-extrabold '>G</h1><span className=''>openhat</span></div>
-        <div className={`text-white   sm:h-[60px] sm:w-[55px] md:h-[75px] md:w-[75px] w-[90px] h-[90px] box flex flex-col items-center pt-3 border-2 border-white ${activeKey === "H" ?'scale-125 duration-300 border-yellow-600 shadow-xl shadow-yellow-600':''}`}><h1 className='font-extrabold '>H</h1><span className=''>ride</span></div>
-        <div className={`text-white   sm:h-[60px] sm:w-[55px] md:h-[75px] md:w-[75px] w-[90px] h-[90px] box flex flex-col items-center pt-3 border-2 border-white ${activeKey === "J" ?'scale-125 duration-300 border-yellow-600 shadow-xl shadow-pink-600':''}`}><h1 className='font-extrabold '>J</h1><span className=''>tink</span></div>
-        <div className={`text-white   sm:h-[60px] sm:w-[55px] md:h-[75px] md:w-[75px] w-[90px] h-[90px] box flex flex-col items-center pt-3 border-2 border-white ${activeKey === "K" ?'scale-125 duration-300 border-yellow-600 shadow-xl shadow-amber-600':''}`}><h1 className='font-extrabold '>K</h1><span className=''>snare</span></div>
-        <div className={`text-white   sm:h-[60px] sm:w-[55px] md:h-[75px] md:w-[75px] w-[90px] h-[90px] box flex flex-col items-center pt-3 border-2 border-white ${activeKey === "L" ?'scale-125 duration-300 border-yellow-600 shadow-xl shadow-rose-600':''}`}><h1 className='font-extrabold '>L</h1><span className=''>tom</span></div>
-      </div>
-      <audio id='A' src="boom.wav" className='bg-green-900'></audio>
-      <audio id='S' src="clap.wav"></audio>
-      <audio id='D' src="hihat.wav"></audio>
-      <audio id='F' src="kick.wav"></audio>
-      <audio id='G' src="openhat.wav"></audio>
-      <audio id='H' src="ride.wav"></audio>
-      <audio id='J' src="snare.wav"></audio>
-      <audio id='K' src="tink.wav"></audio>
-      <audio id='L' src="tom.wav"></audio>
-    </>
+    <div className="stage">
+      <div className="stage-overlay" aria-hidden="true" />
+      <div className="stage-glow" aria-hidden="true" />
+      <div className="stage-grain" aria-hidden="true" />
+
+      <main className="stage-content">
+        <header className="brand-block">
+          <div className="brand-topline">
+            <span className={`status-dot ${ready ? 'is-live' : ''}`} />
+            <span>Studio kit · 26 voices</span>
+          </div>
+          <h1 className="brand-mark">DRUM</h1>
+          <p className="brand-tagline">
+            Play the full QWERTY board. Hit keys or tap pads to build a groove.
+          </p>
+        </header>
+
+        <section className="kit" aria-label="Drum keyboard">
+          <div className="kit-header">
+            <div className="kit-leds" aria-hidden="true">
+              <span className={`led ${lastHit ? 'led-pulse' : ''}`} />
+              <span className={`led led-amber ${lastHit ? 'led-pulse' : ''}`} />
+              <span className="led led-dim" />
+            </div>
+            <div className="kit-meter" aria-live="polite">
+              {lastHit ? (
+                <>
+                  <span className="meter-key">{lastHit.letter}</span>
+                  <span className="meter-sound">{lastHit.sound}</span>
+                </>
+              ) : (
+                <span className="meter-idle">Waiting for input</span>
+              )}
+            </div>
+            <div className="kit-badge">A–Z</div>
+          </div>
+
+          <div className="keyboard-viewport">
+            <div className="keyboard-rows">
+              {ROWS.map((row, rowIndex) => (
+                <div
+                  key={rowIndex}
+                  className={`keyboard-row ${ROW_OFFSETS[rowIndex]}`}
+                >
+                  {row.map((letter) => {
+                    const { sound, family } = KEYS[letter]
+                    const isActive = activeKeys.has(letter)
+                    return (
+                      <button
+                        key={letter}
+                        type="button"
+                        aria-label={`${letter}, ${sound}`}
+                        data-family={family}
+                        className={`pad ${isActive ? 'pad-active' : ''}`}
+                        onPointerDown={(e) => {
+                          e.preventDefault()
+                          triggerKey(letter)
+                        }}
+                      >
+                        <span className="pad-led" aria-hidden="true" />
+                        <span className="pad-letter">{letter}</span>
+                        <span className="pad-sound">{sound}</span>
+                        <span className="pad-flash" aria-hidden="true" />
+                      </button>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="kit-footer">
+            <span>Click or press keys</span>
+          </div>
+        </section>
+      </main>
+    </div>
   )
 }
 
